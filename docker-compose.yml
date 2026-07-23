@@ -1,0 +1,17 @@
+services:
+  mercatr:
+    image: ghcr.io/rvisintine/mercatr:latest
+    build: .
+    container_name: mercatr
+    restart: unless-stopped
+    ports:
+      - "${HOST_PORT:-3000}:3000"
+    env_file:
+      - .env
+    environment:
+      PUID: "${PUID:-1000}"
+      PGID: "${PGID:-1000}"
+      TZ: "${TZ:-UTC}"
+    volumes:
+      - ./data/cache:/app/.cache
+      - ./data/logs:/app/logs

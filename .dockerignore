@@ -1,0 +1,14 @@
+node_modules
+dist
+.cache
+logs
+*.xspf
+.env
+.env.*
+!.env.example
+.git
+.github
+.devcontainer
+.playwright-mcp
+*.local.*
+.astro
