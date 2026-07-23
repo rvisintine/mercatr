@@ -1,9 +1,22 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { fetch as undiciFetch, Agent } from 'undici';
 
 export type LlmProvider = 'claude' | 'openai-compat';
 
 const DEFAULT_PROVIDER: LlmProvider = 'claude';
 const DEFAULT_CLAUDE_MODEL = 'claude-sonnet-4-20250514';
+
+// Node's global fetch defaults to a 5-minute headers/body timeout, which a
+// slow non-streaming completion from a self-hosted model can easily exceed.
+// This dispatcher raises that ceiling to match the frontend's polling
+// timeout. Must be paired with undici's own fetch (not Node's global fetch)
+// -- Node's built-in fetch uses an internally bundled undici version whose
+// dispatcher Handler interface isn't guaranteed to match this package's.
+const OPENAI_COMPAT_TIMEOUT_MS = 20 * 60 * 1000;
+const openAiCompatDispatcher = new Agent({
+  headersTimeout: OPENAI_COMPAT_TIMEOUT_MS,
+  bodyTimeout: OPENAI_COMPAT_TIMEOUT_MS,
+});
 
 export interface GenerateTextOptions {
   systemPrompt: string;
@@ -130,7 +143,7 @@ async function runOpenAiCompatCompletion(options: GenerateTextOptions, model: st
   const baseUrl = readRequiredEnv('OPENAI_COMPAT_BASE_URL').replace(/\/+$/, '');
   const endpoint = `${baseUrl}/chat/completions`;
 
-  const response = await fetch(endpoint, {
+  const response = await undiciFetch(endpoint, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -144,6 +157,7 @@ async function runOpenAiCompatCompletion(options: GenerateTextOptions, model: st
         { role: 'user', content: options.userPrompt },
       ],
     }),
+    dispatcher: openAiCompatDispatcher,
   });
 
   const rawBody = await response.text();
