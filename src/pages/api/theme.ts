@@ -7,7 +7,7 @@ import { runQuery } from '../../llm/harness.js';
 import { parseTracksFromResponse } from '../../llm/parseTracksFromResponse.js';
 import { resolveProcessingModel } from '../../llm/provider.js';
 import { validateStringField, validateOptionalStringField } from '../../lib/validate.js';
-import { createJob, type RouteResult } from '../../lib/jobStore.js';
+import { createJob, toErrorResult, type RouteResult } from '../../lib/jobStore.js';
 
 async function runTheme(theme: string, seedArtist: string | undefined, voice: string | undefined): Promise<RouteResult> {
   try {
@@ -50,8 +50,7 @@ async function runTheme(theme: string, seedArtist: string | undefined, voice: st
       },
     };
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Internal server error';
-    return { status: 500, body: { error: message } };
+    return toErrorResult(err, 'theme');
   }
 }
 
