@@ -6,6 +6,70 @@ import { runQuery } from '../../llm/harness.js';
 import { parseTracksFromResponse } from '../../llm/parseTracksFromResponse.js';
 import { resolveProcessingModel } from '../../llm/provider.js';
 import { validateStringField, validateOptionalStringField } from '../../lib/validate.js';
+import { createJob, type RouteResult } from '../../lib/jobStore.js';
+
+async function runBridge(
+  from: string,
+  to: string,
+  fromSong: string | undefined,
+  toSong: string | undefined,
+  voice: string | undefined,
+): Promise<RouteResult> {
+  try {
+    const client = new LastfmClient({ noCache: false });
+    const processingModel = resolveProcessingModel();
+    const [fromCheck, toCheck] = await Promise.all([
+      checkArtistConfidence(from, client, processingModel),
+      checkArtistConfidence(to, client, processingModel),
+    ]);
+
+    if (fromCheck.result.confidence === 'low') {
+      return {
+        status: 404,
+        body: { error: fromCheck.result.reasoning, type: 'artist_not_found', artist: from },
+      };
+    }
+    if (toCheck.result.confidence === 'low') {
+      return {
+        status: 404,
+        body: { error: toCheck.result.reasoning, type: 'artist_not_found', artist: to },
+      };
+    }
+
+    const resolvedFrom = fromCheck.result.resolvedName ?? from;
+    const resolvedTo = toCheck.result.resolvedName ?? to;
+
+    const query = {
+      type: 'bridge' as const,
+      fromArtist: resolvedFrom,
+      toArtist: resolvedTo,
+      ...(fromSong?.trim() ? { fromSong: fromSong.trim() } : {}),
+      ...(toSong?.trim()   ? { toSong: toSong.trim() }     : {}),
+    };
+    const context = await buildContext(client, query);
+    const { response: raw } = await runQuery(context, { expand: false, voice });
+    const { narrative, tracks, warning } = parseTracksFromResponse(raw);
+    if (warning) process.stderr.write(`[bridge] ${warning}\n`);
+
+    const fromCorrected = resolvedFrom.toLowerCase() !== from.toLowerCase();
+    const toCorrected = resolvedTo.toLowerCase() !== to.toLowerCase();
+
+    return {
+      status: 200,
+      body: {
+        response: narrative,
+        tracks,
+        ...((fromCorrected || toCorrected) ? {
+          resolvedArtist: [resolvedFrom, resolvedTo],
+          originalInput: [from, to],
+        } : {}),
+      },
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Internal server error';
+    return { status: 500, body: { error: message } };
+  }
+}
 
 export const POST: APIRoute = async ({ request }) => {
   const { from, to, fromSong, toSong, voice } = await request.json() as {
@@ -28,55 +92,6 @@ export const POST: APIRoute = async ({ request }) => {
   const toSongErr = validateOptionalStringField(toSong, 'toSong');
   if (toSongErr) return Response.json({ error: toSongErr.error }, { status: toSongErr.status });
 
-  try {
-    const client = new LastfmClient({ noCache: false });
-    const processingModel = resolveProcessingModel();
-    const [fromCheck, toCheck] = await Promise.all([
-      checkArtistConfidence(from!, client, processingModel),
-      checkArtistConfidence(to!, client, processingModel),
-    ]);
-
-    if (fromCheck.result.confidence === 'low') {
-      return Response.json(
-        { error: fromCheck.result.reasoning, type: 'artist_not_found', artist: from },
-        { status: 404 },
-      );
-    }
-    if (toCheck.result.confidence === 'low') {
-      return Response.json(
-        { error: toCheck.result.reasoning, type: 'artist_not_found', artist: to },
-        { status: 404 },
-      );
-    }
-
-    const resolvedFrom = fromCheck.result.resolvedName ?? from!;
-    const resolvedTo = toCheck.result.resolvedName ?? to!;
-
-    const query = {
-      type: 'bridge' as const,
-      fromArtist: resolvedFrom,
-      toArtist: resolvedTo,
-      ...(fromSong?.trim() ? { fromSong: fromSong.trim() } : {}),
-      ...(toSong?.trim()   ? { toSong: toSong.trim() }     : {}),
-    };
-    const context = await buildContext(client, query);
-    const { response: raw } = await runQuery(context, { expand: false, voice });
-    const { narrative, tracks, warning } = parseTracksFromResponse(raw);
-    if (warning) process.stderr.write(`[bridge] ${warning}\n`);
-
-    const fromCorrected = resolvedFrom.toLowerCase() !== from!.toLowerCase();
-    const toCorrected = resolvedTo.toLowerCase() !== to!.toLowerCase();
-
-    return Response.json({
-      response: narrative,
-      tracks,
-      ...((fromCorrected || toCorrected) ? {
-        resolvedArtist: [resolvedFrom, resolvedTo],
-        originalInput: [from, to],
-      } : {}),
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Internal server error';
-    return Response.json({ error: message }, { status: 500 });
-  }
+  const jobId = createJob(() => runBridge(from!, to!, fromSong, toSong, voice));
+  return Response.json({ jobId }, { status: 202 });
 };

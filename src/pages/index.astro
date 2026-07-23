@@ -80,6 +80,27 @@ const { csrfToken } = Astro.locals;
     return `${toTitleCase(inputs.artistFrom)} \u2192 ${toTitleCase(inputs.artistTo)} \u2014 ${date}`;
   }
 
+  const JOB_POLL_INTERVAL_MS = 3000;
+  const JOB_POLL_TIMEOUT_MS = 20 * 60 * 1000;
+
+  async function pollJob(jobId: string): Promise<{ res: Response; data: any }> {
+    const start = Date.now();
+    for (;;) {
+      const res = await fetch(`/api/jobs/${jobId}`);
+      const data = await res.json();
+
+      if (data.jobStatus !== 'pending') {
+        return { res, data };
+      }
+
+      if (Date.now() - start > JOB_POLL_TIMEOUT_MS) {
+        throw new Error('Query timed out');
+      }
+
+      await new Promise(resolve => setTimeout(resolve, JOB_POLL_INTERVAL_MS));
+    }
+  }
+
   // Playlist submission
   document.addEventListener('playlist-submit', async (e: Event) => {
     const { mode, body, title, sessionInputs, sessionMode } = (e as CustomEvent<PlaylistSubmitDetail>).detail;
@@ -88,13 +109,20 @@ const { csrfToken } = Astro.locals;
     waiter.active = true;
 
     try {
-      const res = await fetch(`/api/${mode}`, {
+      const kickoff = await fetch(`/api/${mode}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
         body: JSON.stringify(body),
       });
 
-      const data = await res.json();
+      const kickoffData = await kickoff.json();
+
+      if (!kickoff.ok) {
+        errorEl.show(kickoffData.error ?? 'An unexpected error occurred.');
+        return;
+      }
+
+      const { res, data } = await pollJob(kickoffData.jobId);
 
       if (!res.ok) {
         errorEl.show(data.error ?? 'An unexpected error occurred.');
