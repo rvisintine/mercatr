@@ -23,7 +23,7 @@ async function runExplore(artist: string, track: string | undefined, voice: stri
     const context = await buildContext(client, query);
     const { response: raw } = await runQuery(context, { expand: false, voice });
     const { narrative, tracks, warning } = parseTracksFromResponse(raw);
-    if (warning) process.stderr.write(`[explore] ${warning}\n`);
+    if (warning) process.stderr.write(`[explore] ${warning}\n[explore] raw tail: ${JSON.stringify(raw.slice(-500))}\n`);
 
     const corrected = resolvedName.toLowerCase() !== artist.toLowerCase();
     return {

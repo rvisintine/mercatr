@@ -49,7 +49,7 @@ async function runBridge(
     const context = await buildContext(client, query);
     const { response: raw } = await runQuery(context, { expand: false, voice });
     const { narrative, tracks, warning } = parseTracksFromResponse(raw);
-    if (warning) process.stderr.write(`[bridge] ${warning}\n`);
+    if (warning) process.stderr.write(`[bridge] ${warning}\n[bridge] raw tail: ${JSON.stringify(raw.slice(-500))}\n`);
 
     const fromCorrected = resolvedFrom.toLowerCase() !== from.toLowerCase();
     const toCorrected = resolvedTo.toLowerCase() !== to.toLowerCase();

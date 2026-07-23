@@ -37,7 +37,7 @@ async function runTheme(theme: string, seedArtist: string | undefined, voice: st
     const context = await buildContext(client, query);
     const { response: raw } = await runQuery(context, { expand: false, voice });
     const { narrative, tracks, warning } = parseTracksFromResponse(raw);
-    if (warning) process.stderr.write(`[theme] ${warning}\n`);
+    if (warning) process.stderr.write(`[theme] ${warning}\n[theme] raw tail: ${JSON.stringify(raw.slice(-500))}\n`);
 
     const seedCorrected = resolvedSeed && seedArtist && resolvedSeed.toLowerCase() !== seedArtist.toLowerCase();
 
