@@ -33,7 +33,7 @@ export async function extractTracks(
 
   const completion = await generateText({
     model,
-    maxTokens: 1024,
+    maxTokens: 2560,
     systemPrompt: template.system,
     userPrompt,
   });

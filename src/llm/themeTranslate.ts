@@ -41,7 +41,7 @@ export async function runThemeTranslation(
 
   const completion = await generateText({
     model,
-    maxTokens: 512,
+    maxTokens: 2048,
     systemPrompt: template.system,
     userPrompt,
   });
