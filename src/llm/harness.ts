@@ -16,7 +16,7 @@ function buildVoiceBlock(voiceId?: string): string {
   return `\n\n## Voice\n\n${contents}`;
 }
 
-const DEFAULT_MAX_TOKENS = 4096;
+const DEFAULT_MAX_TOKENS = 8192;
 
 const EXPAND_MODE_REQUIREMENT =
   '\n- **Expanded mode is active**: Treat genre and decade diversity as a hard ' +
