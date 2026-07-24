@@ -248,14 +248,60 @@ const { csrfToken } = Astro.locals;
     } catch { /* non-critical */ }
   })();
 
-  // Load config
+  // Load config + backend switcher
+  interface ProviderConfig {
+    provider: string;
+    model: string;
+    processingModel: string;
+    availableProviders: { id: string; label: string; configured: boolean }[];
+  }
+
+  const providerSelect = document.getElementById('provider-select') as HTMLSelectElement | null;
+
+  function renderConfig(config: ProviderConfig) {
+    document.getElementById('footer-model-main')!.textContent = config.model;
+    document.getElementById('footer-model-processing')!.textContent = config.processingModel;
+
+    if (!providerSelect) return;
+    const options = config.availableProviders.map(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.configured ? p.label : `${p.label} (not configured)`;
+      opt.disabled = !p.configured;
+      if (p.id === config.provider) opt.selected = true;
+      return opt;
+    });
+    providerSelect.replaceChildren(...options);
+  }
+
   (async () => {
     try {
       const res = await fetch('/api/config');
       if (!res.ok) return;
-      const { model, processingModel } = await res.json();
-      document.getElementById('footer-model-main')!.textContent = model;
-      document.getElementById('footer-model-processing')!.textContent = processingModel;
+      renderConfig(await res.json());
     } catch { /* non-critical */ }
   })();
+
+  providerSelect?.addEventListener('change', async () => {
+    const provider = providerSelect.value;
+    providerSelect.disabled = true;
+    try {
+      const res = await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+        body: JSON.stringify({ provider }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.show(data.error ?? 'Failed to switch backend', 'error');
+        return;
+      }
+      renderConfig(data);
+      toast.show(`Switched to ${data.availableProviders.find((p: { id: string }) => p.id === provider)?.label ?? provider}.`);
+    } catch {
+      toast.show('Failed to switch backend', 'error');
+    } finally {
+      providerSelect.disabled = false;
+    }
+  });
 </script>

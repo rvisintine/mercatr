@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { fetch as undiciFetch, Agent } from 'undici';
+import { getProviderOverride } from '../lib/providerSettings.js';
 
 export type LlmProvider = 'claude' | 'openai-compat';
 
@@ -39,6 +40,19 @@ function normalizeProvider(rawProvider: string | undefined): LlmProvider {
   }
   throw new Error(
     `Unsupported LLM_PROVIDER "${rawProvider}". Expected "claude" or "openai-compat".`
+  );
+}
+
+function currentProvider(): LlmProvider {
+  return getProviderOverride() ?? normalizeProvider(process.env.LLM_PROVIDER ?? DEFAULT_PROVIDER);
+}
+
+export function isProviderConfigured(provider: LlmProvider): boolean {
+  if (provider === 'claude') {
+    return Boolean(process.env.ANTHROPIC_API_KEY?.trim());
+  }
+  return Boolean(
+    process.env.OPENAI_COMPAT_API_KEY?.trim() && process.env.OPENAI_COMPAT_BASE_URL?.trim()
   );
 }
 
@@ -181,14 +195,14 @@ export function resolveLlmSettings(options: { model?: string } = {}): {
   provider: LlmProvider;
   model: string;
 } {
-  const provider = normalizeProvider(process.env.LLM_PROVIDER ?? DEFAULT_PROVIDER);
+  const provider = currentProvider();
   const model = resolveModel(provider, options.model);
   return { provider, model };
 }
 
 export function resolveProcessingModel(overrideModel?: string): string {
   if (overrideModel) return overrideModel;
-  const provider = normalizeProvider(process.env.LLM_PROVIDER ?? DEFAULT_PROVIDER);
+  const provider = currentProvider();
   if (provider === 'claude') {
     return process.env.ANTHROPIC_PROCESSING_MODEL
       ?? process.env.ANTHROPIC_MODEL

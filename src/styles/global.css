@@ -563,6 +563,25 @@ footer a {
 
 footer a:hover { color: var(--color-text-faint); }
 
+.footer-provider {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.footer-provider label {
+  color: var(--color-text-ghoster);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.footer-provider select {
+  width: auto;
+  font-size: 0.8rem;
+  padding: 0.2rem 1.5rem 0.2rem 0.5rem;
+}
+
 #footer-models {
   display: flex;
   gap: 1.5rem;
